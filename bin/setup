@@ -1,0 +1,17 @@
+#!/bin/bash
+unamestr=$(uname)
+if [[ ${unamestr} == CYGWIN* ]] ;
+then
+    export GOPATH=$(cygpath -p -w ${DEV}/gopath:$PD)
+else
+    export GOPATH=${DEV}/gopath:${PD}
+fi
+export PATH=$PATH:$PD/bin
+
+if [[ ${unamestr} == CYGWIN* ]] ;
+then
+code ()
+{
+    cmd /c "C:\\Program Files\\Microsoft VS Code\\code"
+}
+fi
