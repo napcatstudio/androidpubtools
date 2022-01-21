@@ -3,6 +3,8 @@
 
 package access
 
+func Y() {}
+
 /*
 import (
 	"fmt"
