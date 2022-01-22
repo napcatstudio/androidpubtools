@@ -30,7 +30,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("error %v", err)
 	}
-	fmt.Printf("\n%v\n", editId)
 
 	// Details
 	appDetails, err := service.Edits.Details.Get(packageName, editId).Do()
@@ -81,7 +80,7 @@ func main() {
 		fmt.Printf("%s %s\n%s\n%s\n",
 			listing.Language, listing.Title,
 			listing.ShortDescription,
-			listing.FullDescription) // also has Video
+			listing.FullDescription)
 	}
 }
 
