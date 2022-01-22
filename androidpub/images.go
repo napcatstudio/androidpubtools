@@ -1,5 +1,6 @@
 // images.go
 // Android Publisher image constants and related information.
+// updated: January 22, 2022
 // see: https://developers.google.com/android-publisher/api-ref/rest/v3/AppImageType
 package androidpub
 

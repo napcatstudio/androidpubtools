@@ -7,7 +7,7 @@ import (
 	"log"
 	"os"
 
-	ap "google.golang.org/api/androidpublisher/v3"
+	//ap "google.golang.org/api/androidpublisher/v3"
 	//"google.golang.org/grpc/credentials"
 
 	apta "github.com/napcatstudio/androidpubtools/androidpub"
@@ -33,8 +33,7 @@ func main() {
 	fmt.Printf("\n%v\n", editId)
 
 	// Details
-	var appDetails *ap.AppDetails
-	appDetails, err = service.Edits.Details.Get(packageName, editId).Do()
+	appDetails, err := service.Edits.Details.Get(packageName, editId).Do()
 	if err != nil {
 		log.Fatalf("getting %s details got %v", packageName, err)
 	}
@@ -73,6 +72,17 @@ func main() {
 		}
 	}
 
+	// Listings
+	llr, err := service.Edits.Listings.List(packageName, editId).Do()
+	if err != nil {
+		log.Fatalf("getting %s listings got %v", packageName, err)
+	}
+	for _, listing := range llr.Listings {
+		fmt.Printf("%s %s\n%s\n%s\n",
+			listing.Language, listing.Title,
+			listing.ShortDescription,
+			listing.FullDescription) // also has Video
+	}
 }
 
 func usage(why string) {
