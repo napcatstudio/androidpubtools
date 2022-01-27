@@ -7,9 +7,6 @@ import (
 	"log"
 	"os"
 
-	//ap "google.golang.org/api/androidpublisher/v3"
-	//"google.golang.org/grpc/credentials"
-
 	apta "github.com/napcatstudio/androidpubtools/androidpub"
 )
 
@@ -21,12 +18,12 @@ func main() {
 	}
 	credentialsJson := args[0]
 	packageName := args[1]
+
 	service, err := apta.GetAPService(credentialsJson)
 	if err != nil {
 		log.Fatalf("error %v", err)
 	}
-	var editId string
-	editId, err = apta.EditsInsert(service, packageName)
+	editId, err := apta.EditsInsert(service, packageName)
 	if err != nil {
 		log.Fatalf("error %v", err)
 	}

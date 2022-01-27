@@ -23,21 +23,29 @@ func GetAPService(credentialsJson string) (*ap.Service, error) {
 
 // EditsInsert gets an edit ID for the given package.
 func EditsInsert(service *ap.Service, packageName string) (string, error) {
-	appEdit, err := service.Edits.Insert(packageName, nil).Do()
+	appEdit, err := EditsInsertAppEdit(service, packageName)
 	if err != nil {
 		return "", fmt.Errorf("inserting edit for %s got %v", packageName, err)
 	}
 	return appEdit.Id, nil
 }
 
-// EditsCommit commits the pending edit for the package.
-func EditsCommit(service *ap.Service, packageName string, editId string) (string, error) {
-	//var appEdit *ap.AppEdit
-	appEdit, err := service.Edits.Commit(packageName, editId).Do()
+// EditsInsertAppEdit returns the full Android Publisher AppEdit
+func EditsInsertAppEdit(service *ap.Service, packageName string) (*ap.AppEdit, error) {
+	appEdit, err := service.Edits.Insert(packageName, nil).Do()
 	if err != nil {
-		return "", fmt.Errorf("commiting edit for %s got %v", packageName, err)
+		return nil, fmt.Errorf("inserting edit for %s got %v", packageName, err)
 	}
-	return appEdit.Id, nil
+	return appEdit, nil
+}
+
+// EditsCommit commits the pending edit for the package.
+func EditsCommit(service *ap.Service, packageName string, editId string) error {
+	_, err := service.Edits.Commit(packageName, editId).Do()
+	if err != nil {
+		return fmt.Errorf("commiting edit for %s got %v", packageName, err)
+	}
+	return nil
 }
 
 /*
