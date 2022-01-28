@@ -3,17 +3,17 @@
 package main
 
 import (
-	//"crypto/sha1"
+	"crypto/sha1"
 	"flag"
 	"fmt"
 	"log"
 
-	//"io/ioutil"
+	"io/ioutil"
 	//"log"
 	"os"
 
-	//"path/filepath"
 	ap "google.golang.org/api/androidpublisher/v3"
+	"path/filepath"
 
 	apt "github.com/napcatstudio/androidpubtools/androidpub"
 	"github.com/napcatstudio/translate/xlns"
@@ -188,11 +188,15 @@ update images: %v
 				}
 			}
 		}
-		//if do_images {
-		//	localeNeedsUpdate =
-		//		localeNeedsUpdate
-		//			updateImages(*shotsDir, apei, defBcp47, bcp47) || localeNeedsUpdate
-		//}
+		if do_images {
+			//	localeNeedsUpdate =
+			//		localeNeedsUpdate
+			//			updateImages(*shotsDir, apei, defBcp47, bcp47) || localeNeedsUpdate
+			err := updateImages(&info, listing.Language)
+			if err != nil {
+				fatal(err)
+			}
+		}
 
 		//needsCommit = needsCommit || localeNeedsUpdate
 
@@ -327,80 +331,47 @@ func updateDescriptions(ei *editInfo, bcp47 string) error {
 	return nil
 }
 
-/*
 type shotInfo struct {
 	file, sha1 string
 	image      *ap.Image
 }
 
-func fileSha1(file string) (string, error) {
-	bytes, err := ioutil.ReadFile(file)
-	if err != nil {
-		return "", err
-	}
-	return fmt.Sprintf("%x", sha1.Sum(bytes)), nil
-}
-
-func getShotInfo(files []string) []shotInfo {
-	sis := make([]shotInfo, len(files))
-	for i, file := range files {
-		sha1, err := fileSha1(file)
-		if err != nil {
-			log.Fatalf("SHA1 for %s failed %v", file, err)
-		}
-		sis[i] = shotInfo{file: file, sha1: sha1, image: nil}
-	}
-	return sis
-}
-
-func getImageInfo(
-	apei *xlns.APEditInfo,
-	bcp47, imageType string) []*ap.Image {
-	list := apei.Srv.Edits.Images.List(apei.Package, apei.Id, bcp47, imageType)
-	var ilr *ap.ImagesListResponse
-	err := xlns.ExpBackoff(func() error {
-		var err error
-		ilr, err = list.Do()
-		return err
-	})
-	if err != nil {
-		log.Fatalf("Edits.Images.List for %s %s failed %v",
-			bcp47, imageType, err)
-	}
-	return ilr.Images
-}
-
 // updateImages checks for image updates.
-func updateImages(
-	shotsDir string,
-	apei *xlns.APEditInfo,
-	defBcp47, bcp47 string) bool {
+func updateImages(ei *editInfo, bcp47 string) error {
 	iso639 := xlns.Iso639FromBcp47(bcp47)
-	needsCommit := false
 
 	// Go through shots.
-	for _, imageType := range xlns.GoogleImageTypes {
-		locImageDir := filepath.Join(shotsDir, imageType)
+	for _, imageType := range apt.GooglePlayImageTypes {
+		locImageDir := filepath.Join(ei.shotsDir, imageType)
 		// Look for locale specific images first.
 		pattern := filepath.Join(locImageDir, bcp47+"*.png")
-		matches, err := filepath.Glob(pattern)
-		if err != nil {
-			log.Fatalf("Glob for %s failed %v", pattern, err)
-		}
+		matches, _ := filepath.Glob(pattern)
+		//if err != nil {
+		//	log.Fatalf("Glob for %s failed %v", pattern, err)
+		//}
 		if len(matches) == 0 {
 			// Look for language specific images.
 			pattern = filepath.Join(locImageDir, iso639+"*.png")
-			matches, err = filepath.Glob(pattern)
-			if err != nil {
-				log.Fatalf("Glob for %s failed %v", pattern, err)
-			}
+			matches, _ = filepath.Glob(pattern)
+			//if err != nil {
+			//	log.Fatalf("Glob for %s failed %v", pattern, err)
+			//}
 		}
 		// Get info from the directory and from Google.
-		sis := getShotInfo(matches)
-		images := getImageInfo(apei, bcp47, imageType)
+		sis, err := getShotInfo(matches)
+		if err != nil {
+			return err
+		}
+		//images := getImageInfo(ei, bcp47, imageType)
+		ilr, err := ei.service.Edits.Images.List(ei.packageName, ei.editId, bcp47, imageType).Do()
+		if err != nil {
+			return fmt.Errorf("image list for %s %s got %v",
+				bcp47, imageType, err)
+		}
+
 		// Match up the info.
 		var toDelete []*ap.Image
-		for _, image := range images {
+		for _, image := range ilr.Images {
 			found := false
 			for sii, si := range sis {
 				if si.sha1 == image.Sha1 {
@@ -415,42 +386,78 @@ func updateImages(
 		}
 		// Delete unwanted images.
 		for _, doomed := range toDelete {
-			log.Printf("delete %s %s %s\n", bcp47, imageType, doomed.Id)
-			del := apei.Srv.Edits.Images.Delete(
-				apei.Package, apei.Id, bcp47, imageType, doomed.Id)
-			err := xlns.ExpBackoff(func() error {
-				return del.Do()
-			})
+			fmt.Printf("delete %s %s %s\n", bcp47, imageType, doomed.Id)
+			err := ei.service.Edits.Images.Delete(
+				ei.packageName, ei.editId, bcp47, imageType, doomed.Id).Do()
+			//err := xlns.ExpBackoff(func() error {
+			//	return del.Do()
+			//})
 			if err != nil {
-				log.Fatalf("Edits.Images.Delete %s %s %s failed %v",
-					bcp47, imageType, doomed.Id, err)
+				return err
 			}
-			needsCommit = true
+			ei.needsCommit = true
 		}
 		// Upload new images.
 		for _, si := range sis {
 			if si.image == nil {
 				// Update.
-				log.Printf("upload %s\n", si.file)
-				upload := apei.Srv.Edits.Images.Upload(
-					apei.Package, apei.Id, bcp47, imageType)
+				fmt.Printf("upload %s\n", si.file)
 				fPng, err := os.Open(si.file)
 				if err != nil {
-					log.Fatalf("Open %s %v", si.file, err)
+					return fmt.Errorf("can't open %s got %v", si.file, err)
 				}
 				defer fPng.Close()
-				_ = upload.Media(fPng)
-				err = xlns.ExpBackoff(func() error {
-					_, err := upload.Do()
-					return err
-				})
+				_, err = ei.service.Edits.Images.Upload(
+					ei.packageName, ei.editId, bcp47, imageType).Media(fPng).Do()
 				if err != nil {
-					log.Fatalf("Edits.Images.Upload failed %v", err)
+					return fmt.Errorf("uploading %s got %v", si.file, err)
 				}
-				needsCommit = true
+				//_ = upload.Media(fPng)
+				//err = xlns.ExpBackoff(func() error {
+				//	_, err := upload.Do()
+				//	return err
+				//})
+				//if err != nil {
+				//	log.Fatalf("Edits.Images.Upload failed %v", err)
+				//}
+				ei.needsCommit = true
 			}
 		}
 	}
-	return needsCommit
+	return nil
 }
-*/
+
+func getImageInfo(ei *editInfo, bcp47, imageType string) ([]*ap.Image, error) {
+	list, err := ei.service.Edits.Images.List(ei.packageName, ei.editId, bcp47, imageType).Do()
+	//var ilr *ap.ImagesListResponse
+	//err := xlns.ExpBackoff(func() error {
+	//	var err error
+	//	ilr, err = list.Do()
+	//	return err
+	//})
+	if err != nil {
+		return nil, fmt.Errorf("image list for %s %s got %v",
+			bcp47, imageType, err)
+	}
+	return list.Images, nil
+}
+
+func getShotInfo(files []string) ([]shotInfo, error) {
+	sis := make([]shotInfo, len(files))
+	for i, file := range files {
+		sha1, err := fileSha1(file)
+		if err != nil {
+			return nil, fmt.Errorf("SHA1 for %s got %v", file, err)
+		}
+		sis[i] = shotInfo{file: file, sha1: sha1, image: nil}
+	}
+	return sis, nil
+}
+
+func fileSha1(file string) (string, error) {
+	bytes, err := ioutil.ReadFile(file)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%x", sha1.Sum(bytes)), nil
+}
