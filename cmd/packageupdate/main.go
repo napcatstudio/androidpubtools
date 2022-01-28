@@ -6,12 +6,14 @@ import (
 	//"crypto/sha1"
 	"flag"
 	"fmt"
+	"log"
 
 	//"io/ioutil"
 	//"log"
 	"os"
 
 	//"path/filepath"
+	ap "google.golang.org/api/androidpublisher/v3"
 
 	apt "github.com/napcatstudio/androidpubtools/androidpub"
 	"github.com/napcatstudio/translate/xlns"
@@ -32,6 +34,16 @@ where:
     packageName  The name of an APK that the service account has access to.
 `
 )
+
+type editInfo struct {
+	wordsDir, shotsDir, packageName, editId, defBcp47 string
+	service                                           *ap.Service
+	needsCommit                                       bool
+}
+
+func (ei editInfo) String() string {
+	return fmt.Sprintf("%s-%s", ei.packageName, ei.defBcp47)
+}
 
 func main() {
 	credentialsJson := flag.String(
@@ -67,7 +79,12 @@ func main() {
 	if flag.NArg() != 1 {
 		usage(fmt.Errorf("wrong number of arguments"))
 	}
-	packageName := flag.Arg(0)
+	info := editInfo{
+		wordsDir:    *wordsDir,
+		shotsDir:    *shotsDir,
+		packageName: flag.Arg(0),
+		needsCommit: false,
+	}
 	do_text := !*imagesOnly
 	do_images := !*textOnly
 	fmt.Printf(`credentials: %s
@@ -78,35 +95,42 @@ update images: %v
 `,
 		*credentialsJson, *wordsDir, *shotsDir, do_text, do_images)
 
-	service, err := apt.GetAPService(*credentialsJson)
+	var err error
+	info.service, err = apt.GetAPService(*credentialsJson)
 	if err != nil {
 		usage(fmt.Errorf("connecting to %s got %v", *credentialsJson, err))
 	}
-	editId, err := apt.EditsInsert(service, packageName)
+	info.editId, err = apt.EditsInsert(info.service, info.packageName)
 	if err != nil {
 		usage(fmt.Errorf("getting edits insert got %v", err))
 	}
-	needsCommit := false
 
 	// Details
-	appDetails, err := service.Edits.Details.Get(packageName, editId).Do()
+	appDetails, err := info.service.Edits.Details.Get(
+		info.packageName, info.editId).Do()
 	if err != nil {
-		fatal(fmt.Errorf("getting %s details got %v", packageName, err))
+		fatal(fmt.Errorf("getting %s details got %v", info.packageName, err))
 	}
 	// TODO: limit this.
 	fmt.Printf("%s %s\n%s\n%s\n",
-		packageName, appDetails.DefaultLanguage,
+		info.packageName, appDetails.DefaultLanguage,
 		appDetails.ContactEmail,
 		appDetails.ContactWebsite)
-	var defBcp47 = appDetails.DefaultLanguage
+	// Finish setting up info.
+	info.defBcp47 = appDetails.DefaultLanguage
+
+	listings, err := listings(&info)
+	if err != nil {
+		fatal(err)
+	}
 
 	// Get the BCP-47 codes we need to check.
-	translateable, err := xlns.TranslateableGoogleLocales(*wordsDir, defBcp47)
+	translateable, err := xlns.TranslateableGoogleLocales(info.wordsDir, info.defBcp47)
 	if err != nil {
 		fatal(err)
 	}
 	// We need to update the default locale also.
-	translateable = append(translateable, defBcp47)
+	translateable = append(translateable, info.defBcp47)
 
 	// Set update limit.
 	//if *updateLimit == -1 {
@@ -114,55 +138,77 @@ update images: %v
 	//}
 
 	// Show the BCP-47 places we aren't checking.
-	un, err := xlns.UntranslateableGoogleLocales(*wordsDir, defBcp47)
+	un, err := xlns.UntranslateableGoogleLocales(info.wordsDir, info.defBcp47)
 	if err == nil {
-		fmt.Printf("Not updating:%v\n", un)
+		fmt.Printf("Can't update:%v\n", un)
 	}
 
 	/*
-
-
 		// How many calls to Google?
 		//log.Printf("%d calls", *xlns.APCalls)
 		lastCalls := *xlns.APCalls
+	*/
 
-		// By locale.
-		needsCommit := false
-		needingUpdate := 0
-		for i, bcp47 := range translateable {
-			// Output BCP-47.
-			log.Printf("%s (%d/%d)", bcp47, i+1, len(translateable))
+	// By locale.
+	//needingUpdate := 0
+	for i, listing := range listings {
+		// Output BCP-47.
+		fmt.Printf("%s (%d/%d)\n", listing.Language, i+1, len(listings))
 
-			localeNeedsUpdate := false
-			if text {
-				if defBcp47 != bcp47 {
-					// The description for the "base" locale is by definition
-					// correct (and not in need of translating!).
-					localeNeedsUpdate = updateDescriptions(*wordsDir, apei, defBcp47, bcp47)
-				}
+		can_translate := false
+		for _, bcp47 := range translateable {
+			if bcp47 == listing.Language {
+				can_translate = true
+				break
 			}
-			if images {
-				localeNeedsUpdate =
-					localeNeedsUpdate ||
-						updateImages(*shotsDir, apei, defBcp47, bcp47) || localeNeedsUpdate
-			}
+		}
+		if !can_translate {
+			fmt.Printf("no words for %s\n", listing.Language)
+			continue
+		}
 
-			needsCommit = needsCommit || localeNeedsUpdate
+		//has, err := hasCountry(&info, bcp47)
+		//if err != nil {
+		//	fatal(err)
+		//}
+		//if !has {
+		//	fmt.Printf("missing %s", bcp47)
+		//	continue
+		//}
 
-			//log.Printf("%d calls +%d", *xlns.APCalls, *xlns.APCalls-lastCalls)
-			lastCalls = *xlns.APCalls
-
-			if localeNeedsUpdate {
-				needingUpdate++
-				if needingUpdate >= *updateLimit {
-					break
+		//localeNeedsUpdate := false
+		if do_text {
+			if info.defBcp47 != listing.Language {
+				// The description for the "base" locale is by definition
+				// correct (and not in need of translating!).
+				//localeNeedsUpdate = updateDescriptions(&info)
+				err := updateDescriptions(&info, listing.Language)
+				if err != nil {
+					fatal(err)
 				}
 			}
 		}
+		//if do_images {
+		//	localeNeedsUpdate =
+		//		localeNeedsUpdate
+		//			updateImages(*shotsDir, apei, defBcp47, bcp47) || localeNeedsUpdate
+		//}
 
-	*/
-	if needsCommit {
-		err := apt.EditsCommit(service, packageName, editId)
+		//needsCommit = needsCommit || localeNeedsUpdate
+
+		//log.Printf("%d calls +%d", *xlns.APCalls, *xlns.APCalls-lastCalls)
+		//lastCalls = *xlns.APCalls
+
+		//if localeNeedsUpdate {
+		//	needingUpdate++
+		//	//if needingUpdate >= *updateLimit {
+		//	//	break
+		//	//}
+		//}
+	}
+
+	if info.needsCommit {
+		err := apt.EditsCommit(info.service, info.packageName, info.editId)
 		if err != nil {
 			fatal(err)
 		}
@@ -183,23 +229,40 @@ func fatal(err error) {
 	os.Exit(2)
 }
 
-//var showBase = true
+// listings returns the listings currently available in the Play Store.
+func listings(ei *editInfo) ([]*ap.Listing, error) {
+	listings, err := ei.service.Edits.Listings.List(
+		ei.packageName, ei.editId).Do()
+	if err != nil {
+		return nil, fmt.Errorf("getting listings got %v", err)
+	}
+	var ls []*ap.Listing
+	for _, listing := range listings.Listings {
+		ls = append(ls, listing)
+	}
+	return ls, nil
+}
 
-/*
+//func hasCountry(ei *editInfo, bcp47) (bool, error) {
+//	avail, err := ei.service.Edits.Countryavailability.
+//}
+
+var showBase = true
+
 // updateDescription updates the description information for a package for
 // each BCP-47 location it has information for.
-func updateDescriptions(
-	wordsDir string,
-	apei *xlns.APEditInfo,
-	defBcp47, bcp47 string) bool {
+func updateDescriptions(ei *editInfo, bcp47 string) error {
 	// Get the base language listing.
-	baseLangGet := apei.Srv.Edits.Listings.Get(apei.Package, apei.Id, defBcp47)
-	var baseListing *ap.Listing
-	err := xlns.ExpBackoff(func() error {
-		var err error
-		baseListing, err = baseLangGet.Do()
-		return err
-	})
+	baseListing, err := ei.service.Edits.Listings.Get(
+		ei.packageName, ei.editId, ei.defBcp47).Do()
+	//err := xlns.ExpBackoff(func() error {
+	//	var err error
+	//	baseListing, err = baseLangGet.Do()
+	//	return err
+	//})
+	if err != nil {
+		return fmt.Errorf("getting edit listing for %s got %v", bcp47, err)
+	}
 	if err != nil {
 		log.Fatalf("Edits.Listings.Get failed %v", err)
 	}
@@ -210,28 +273,28 @@ func updateDescriptions(
 			baseListing.FullDescription)
 		showBase = false
 	}
-	base639 := xlns.Iso639FromBcp47(defBcp47)
+	base639 := xlns.Iso639FromBcp47(ei.defBcp47)
 
 	// Create translation map.
 	iso639 := xlns.Iso639FromBcp47(bcp47)
-	xm, err := xlns.WordsXlnsMap(wordsDir, base639, iso639)
+	xm, err := xlns.WordsXlnsMap(ei.wordsDir, base639, iso639)
 	if err != nil {
-		log.Fatalf("%s %s to %s problem got %v",
-			wordsDir, base639, iso639, err)
+		return fmt.Errorf("%s %s to %s problem got %v",
+			ei.wordsDir, base639, iso639, err)
 	}
 
 	// Check if update is needed.
 	// Read existing.
 	// TODO: on failure add...
-	langGet := apei.Srv.Edits.Listings.Get(apei.Package, apei.Id, bcp47)
-	var listing *ap.Listing
-	err = xlns.ExpBackoff(func() error {
-		var err error
-		listing, err = langGet.Do()
-		return err
-	})
+	listing, err := ei.service.Edits.Listings.Get(
+		ei.packageName, ei.editId, bcp47).Do()
+	//err = xlns.ExpBackoff(func() error {
+	//	var err error
+	//	listing, err = langGet.Do()
+	//	return err
+	//})
 	if err != nil {
-		log.Fatalf("Edits.Listings.Get %s failed %v", bcp47, err)
+		return fmt.Errorf("get listing for %s failed %v", bcp47, err)
 	}
 
 	translated := ap.Listing{
@@ -240,30 +303,31 @@ func updateDescriptions(
 		ShortDescription: xm.TranslateByLine(baseListing.ShortDescription),
 		FullDescription:  xm.TranslateByLine(baseListing.FullDescription),
 	}
-	// TODO: Check for bad translation.
 
 	// Compare.
 	isTheSame := listing.Title == translated.Title &&
 		listing.ShortDescription == translated.ShortDescription &&
 		listing.FullDescription == translated.FullDescription
 	if isTheSame {
-		log.Printf("no changes for %s", bcp47)
-		return false
+		fmt.Printf("no changes for %s", bcp47)
+		return nil
 	}
 
-	update := apei.Srv.Edits.Listings.Update(
-		apei.Package, apei.Id, bcp47, &translated)
-	err = xlns.ExpBackoff(func() error {
-		_, err := update.Do() // *Listing, error
-		return err
-	})
+	_, err = ei.service.Edits.Listings.Update(
+		ei.packageName, ei.editId, bcp47, &translated).Do()
+	//err = xlns.ExpBackoff(func() error {
+	//	_, err := update.Do() // *Listing, error
+	//	return err
+	//})
 	if err != nil {
-		log.Fatalf("Edits.Listings.Update failed %v", err)
+		return fmt.Errorf("listing update for %s got %v", bcp47, err)
 	}
+	ei.needsCommit = true
 
-	return true
+	return nil
 }
 
+/*
 type shotInfo struct {
 	file, sha1 string
 	image      *ap.Image
