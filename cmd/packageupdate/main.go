@@ -20,7 +20,6 @@ const (
 	defaultCredentials = "credentials.json"
 	defaultWordsDir    = "words"
 	defaultShotsDir    = "images"
-	defaultUpdateLimit = -1
 	USAGE              = `usage:
 packageupdate [flags...] packageName
 
