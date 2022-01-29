@@ -7,7 +7,8 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	//"google.golang.org/grpc/credentials"
+
+	apt "github.com/napcatstudio/androidpubtools/androidpub"
 )
 
 const (
@@ -95,24 +96,25 @@ func main() {
 	}
 }
 
+func info(credentialsJson, packageName string) error {
+	return apt.PackageInfo(os.Stdout, credentialsJson, packageName)
+}
+
 func update(
 	wordsDir, imagesDir, credentialsJson, packageName string,
 	do_text, do_images bool) error {
-	return fmt.Errorf("not implemented")
-}
-
-func info(credentialsJson, packageName string) error {
-	return fmt.Errorf("not implemented")
+	return apt.PackageUpdate(
+		credentialsJson, packageName, wordsDir, imagesDir, do_text, do_images)
 }
 
 func fatal_usage(err error) {
-	fmt.Fprintf(os.Stderr, "error: %v", err)
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	flag.Usage()
 	os.Exit(2)
 }
 
 func fatal(err error) {
-	fmt.Fprintf(os.Stderr, "error: %v", err)
+	fmt.Fprintf(os.Stderr, "error: %v\n", err)
 	os.Exit(2)
 }
 

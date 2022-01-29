@@ -6,8 +6,9 @@ package androidpub
 
 import (
 	"fmt"
-	"github.com/napcatstudio/translate/xlns"
 	"strings"
+
+	"github.com/napcatstudio/translate/xlns"
 )
 
 type GooglePlayDistribution struct {
@@ -45,7 +46,7 @@ var distribution = []GooglePlayDistribution{
 	{"English", "en-SG"},
 	{"English", "en-ZA"},
 	{"Estonian", "et"},
-	{"Filipino", "fil"},
+	//{"Filipino", "fil"}, //TODO: not ISO-639?
 	{"Finnish", "fi-FI"},
 	{"French (Canada)", "fr-CA"},
 	{"French (France)", "fr-FR"},
@@ -54,7 +55,7 @@ var distribution = []GooglePlayDistribution{
 	{"German", "de-DE"},
 	{"Greek", "el-GR"},
 	{"Gujarati", "gu"},
-	{"Hebrew", "iw-IL"},
+	//{"Hebrew", "iw-IL"}, //TODO: not ISO-639?
 	{"Hindi", "hi-IN"},
 	{"Hungarian", "hu-HU"},
 	{"Icelandic", "is-IS"},
@@ -142,10 +143,12 @@ func TranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
 			continue
 		}
 		iso639 := xlns.Iso639FromBcp47(info.Bcp47)
+		//fmt.Println(info.Bcp47, iso639)
 		has, err := xlns.WordsHasLanguage(wordsDir, iso639)
 		if err != nil {
-			return nil, fmt.Errorf("bad words directory %s got %v",
-				wordsDir, err)
+			// If you get an error from here perhaps distribution (above)
+			// is out of date.
+			return nil, err
 		}
 		if has {
 			translateable = append(translateable, info.Bcp47)
