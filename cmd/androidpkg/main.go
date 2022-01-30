@@ -27,8 +27,12 @@ Usage:
 The commands are:
 	info
 	  Lookup information about packageName.
-	update [flags..]
-	  Update packageName.
+	update
+	  Update packageName images and text.
+	images
+	  Update packageName images using the files in images.
+	text
+	  Update packageName text using the files in words.
 
 `
 )
@@ -46,65 +50,47 @@ func main() {
 		"images", defaultImagesDir,
 		"Images directory.",
 	)
-	updateCmd := flag.NewFlagSet("update", flag.ExitOnError)
-	textOnly := updateCmd.Bool(
-		"textonly", false,
-		"Only update text.",
-	)
-	imagesOnly := updateCmd.Bool(
-		"imagesonly", false,
-		"Only update images.",
-	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, USAGE)
-		fmt.Fprintf(os.Stderr, "androidpkg flags:\n")
 		flag.PrintDefaults()
-		fmt.Fprintf(os.Stderr, "update flags:\n")
-		updateCmd.PrintDefaults()
 	}
 	flag.Parse()
 	if err := isFile(*credentialsJson); err != nil {
 		fatal_usage(fmt.Errorf("credentialsJson got %v", err))
 	}
-
 	if flag.NArg() != 2 {
 		fatal_usage(fmt.Errorf("wrong number of arguments"))
 	}
-	do_text := !*imagesOnly
-	do_images := !*textOnly
 
 	// Run command.
 	var err error
 	switch flag.Arg(0) {
 	case "info":
-		err = info(*credentialsJson, flag.Arg(1))
+		err = apt.PackageInfo(os.Stdout, *credentialsJson, flag.Arg(1))
+	case "images":
+		if err = isDir(*imagesDir); err != nil {
+			fatal_usage(err)
+		}
+		err = apt.PackageUpdateImages(
+			*credentialsJson, flag.Arg(1), *imagesDir)
+	case "text":
+		if err = isDir(*wordsDir); err != nil {
+			fatal_usage(err)
+		}
+		err = apt.PackageUpdateText(*credentialsJson, flag.Arg(1), *wordsDir)
 	case "update":
-		if err = isDir(*wordsDir); do_text && err != nil {
+		if err = isDir(*wordsDir); err != nil {
 			fatal_usage(err)
 		}
-		if err = isDir(*imagesDir); do_images && err != nil {
+		if err = isDir(*imagesDir); err != nil {
 			fatal_usage(err)
 		}
-		err = update(
-			*wordsDir, *imagesDir,
-			*credentialsJson,
-			flag.Arg(1),
-			do_text, do_images)
+		err = apt.PackageUpdate(
+			*credentialsJson, flag.Arg(1), *wordsDir, *imagesDir, true, true)
 	}
 	if err != nil {
 		fatal(err)
 	}
-}
-
-func info(credentialsJson, packageName string) error {
-	return apt.PackageInfo(os.Stdout, credentialsJson, packageName)
-}
-
-func update(
-	wordsDir, imagesDir, credentialsJson, packageName string,
-	do_text, do_images bool) error {
-	return apt.PackageUpdate(
-		credentialsJson, packageName, wordsDir, imagesDir, do_text, do_images)
 }
 
 func fatal_usage(err error) {

@@ -127,13 +127,13 @@ func PackageInfo(w io.Writer, credentialsJson, packageName string) error {
 func PackageUpdate(
 	credentialsJson, packageName, wordsDir, imagesDir string,
 	do_text, do_images bool) error {
-	fmt.Printf(`credentials: %s
-words: %s
-images: %s
-update text: %v
-update images: %v
-`,
-		credentialsJson, wordsDir, imagesDir, do_text, do_images)
+	//	fmt.Printf(`credentials: %s
+	//words: %s
+	//images: %s
+	//update text: %v
+	//update images: %v
+	//`,
+	//		credentialsJson, wordsDir, imagesDir, do_text, do_images)
 
 	service, err := GetAPService(credentialsJson)
 	if err != nil {
@@ -161,19 +161,22 @@ update images: %v
 		return err
 	}
 
-	// Get the BCP-47 codes can check.
-	translateable, err := TranslateableGoogleLocales(wordsDir, defBcp47)
-	if err != nil {
-		return err
-	}
-	fmt.Printf("can update:%v\n", translateable)
-	// We need to update the default locale also.
-	translateable = append(translateable, defBcp47)
+	var translateable []string
+	if do_text {
+		// Get the BCP-47 codes can check.
+		translateable, err = TranslateableGoogleLocales(wordsDir, defBcp47)
+		if err != nil {
+			return err
+		}
+		//fmt.Printf("can update:%v\n", translateable)
+		// We need to update the default locale also.
+		translateable = append(translateable, defBcp47)
 
-	// Show the BCP-47 places we aren't checking.
-	un, err := UntranslateableGoogleLocales(wordsDir, defBcp47)
-	if err == nil {
-		fmt.Printf("can't update:%v\n", un)
+		// Show the BCP-47 places we aren't checking.
+		//un, err := UntranslateableGoogleLocales(wordsDir, defBcp47)
+		//if err == nil {
+		//	fmt.Printf("can't update:%v\n", un)
+		//}
 	}
 
 	// By locale.
@@ -182,22 +185,22 @@ update images: %v
 		// Output BCP-47.
 		fmt.Printf("%s (%d/%d)\n", listing.Language, i+1, len(listings))
 
-		can_translate := false
-		for _, bcp47 := range translateable {
-			if bcp47 == listing.Language {
-				can_translate = true
-				break
-			}
-		}
-		if do_text && !can_translate {
-			fmt.Printf("no words for %s\n", listing.Language)
-			continue
-		}
-
 		if do_text {
-			if defBcp47 != listing.Language {
-				// The description for the "base" locale is by definition
-				// correct (and not in need of translating!).
+			can_translate := false
+			for _, bcp47 := range translateable {
+				if bcp47 == listing.Language {
+					can_translate = true
+					break
+				}
+			}
+			if !can_translate {
+				fmt.Printf("no words for %s\n", listing.Language)
+				continue
+			}
+
+			if defBcp47 == listing.Language {
+				fmt.Printf("default not changing %s\n", defBcp47)
+			} else {
 				commit, err := updateDescriptions(
 					service, editId,
 					packageName, wordsDir,
@@ -210,6 +213,7 @@ update images: %v
 				}
 			}
 		}
+
 		if do_images {
 			commit, err := updateImages(
 				service, editId, packageName, imagesDir, listing.Language)
@@ -229,6 +233,22 @@ update images: %v
 		}
 	}
 	return nil
+}
+
+// PackageUpdateText updates a Play Store Android package text details using
+// the AndroidPublisher API V3.
+func PackageUpdateText(
+	credentialsJson, packageName, wordsDir string) error {
+	return PackageUpdate(
+		credentialsJson, packageName, wordsDir, "", true, false)
+}
+
+// PackageUpdateText updates a Play Store Android package text details using
+// the AndroidPublisher API V3.
+func PackageUpdateImages(
+	credentialsJson, packageName, imagesDir string) error {
+	return PackageUpdate(
+		credentialsJson, packageName, "", imagesDir, false, true)
 }
 
 // listings returns the listings currently available in the Play Store.
@@ -288,7 +308,7 @@ func updateDescriptions(
 		listing.ShortDescription == translated.ShortDescription &&
 		listing.FullDescription == translated.FullDescription
 	if isTheSame {
-		fmt.Printf("no changes for %s\n", bcp47)
+		fmt.Printf("no listing changes for %s\n", bcp47)
 		return false, nil
 	}
 
@@ -381,6 +401,9 @@ func updateImages(
 				needsCommit = true
 			}
 		}
+	}
+	if !needsCommit {
+		fmt.Printf("no images changes for %s\n", bcp47)
 	}
 	return needsCommit, nil
 }
