@@ -35,6 +35,33 @@ separately from updating.
 
 ### androidpub
 
+    androidpkg is a tool for managing Play Store packages.
+
+    It can update the Play Store country text and images.  It uses a meaning
+    ordered words system for text.  It uses a directory hierarchy for images.
+    It uses the Google Translate API V3 for translating.
+
+    Usage:
+        androidpkg [flags..] command packageName
+
+    The commands are:
+        info
+        Lookup information about packageName.
+        update
+        Update packageName images and text.
+        images
+        Update packageName images using the files in images.
+        text
+        Update packageName text using the files in words.
+
+    -credentials string
+            Google Play Developer service credentials. (default "credentials.json")
+    -images string
+            Images directory. (default "images")
+    -words string
+            The directory containing the meaning ordered words files. (default "words")
+
+
 ## Reference
 
 ### Go modules
