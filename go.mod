@@ -3,7 +3,7 @@ module github.com/napcatstudio/androidpubtools
 go 1.17
 
 require (
-	github.com/napcatstudio/translate v1.0.1
+	github.com/napcatstudio/translate v1.1.1
 	google.golang.org/api v0.65.0
 )
 

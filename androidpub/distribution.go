@@ -142,13 +142,18 @@ func TranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
 		if info.Bcp47 == defLang {
 			continue
 		}
-		iso639 := xlns.Iso639FromBcp47(info.Bcp47)
-		//fmt.Println(info.Bcp47, iso639)
-		has, err := xlns.WordsHasLanguage(wordsDir, iso639)
+		has, err := xlns.WordsHasLanguage(wordsDir, info.Bcp47)
 		if err != nil {
-			// If you get an error from here perhaps distribution (above)
-			// is out of date.
+			// File access problem?
 			return nil, err
+		}
+		if !has {
+			// Do we have the main ISO-639 translation?
+			iso639 := xlns.Iso639FromBcp47(info.Bcp47)
+			has, err = xlns.WordsHasLanguage(wordsDir, iso639)
+			if err != nil {
+				return nil, err
+			}
 		}
 		if has {
 			translateable = append(translateable, info.Bcp47)
@@ -159,24 +164,25 @@ func TranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
 
 // UntranslateableGoogleLocales returns a list of BCP-47 locales we don't
 // have languages for.  It excludes the defLang locale.
-func UntranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
-	var un []string
-	for _, info := range distribution {
-		if info.Bcp47 == defLang {
-			continue
-		}
-		iso639 := xlns.Iso639FromBcp47(info.Bcp47)
-		has, err := xlns.WordsHasLanguage(wordsDir, iso639)
-		if err != nil {
-			return nil, fmt.Errorf("bad words directory %s got %v",
-				wordsDir, err)
-		}
-		if !has {
-			un = append(un, info.Bcp47)
-		}
-	}
-	return un, nil
-}
+//func UntranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
+//	var un []string
+//	for _, info := range distribution {
+//		if info.Bcp47 == defLang {
+//			continue
+//		}
+// TODO: This is too strict.
+//		iso639 := xlns.Iso639FromBcp47(info.Bcp47)
+//		has, err := xlns.WordsHasLanguage(wordsDir, iso639)
+//		if err != nil {
+//			return nil, fmt.Errorf("bad words directory %s got %v",
+//				wordsDir, err)
+//		}
+//		if !has {
+//			un = append(un, info.Bcp47)
+//		}
+//	}
+//	return un, nil
+//}
 
 // GoogleLocaleForLang tries to find a Google supported locale for the given
 // language.
