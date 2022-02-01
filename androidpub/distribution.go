@@ -140,6 +140,7 @@ func TranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
 	var translateable []string
 	for _, info := range distribution {
 		if info.Bcp47 == defLang {
+			// We can't translate X to X.
 			continue
 		}
 		has, err := xlns.WordsHasLanguage(wordsDir, info.Bcp47)

@@ -22,7 +22,7 @@ ordered words system for text.  It uses a directory hierarchy for images.
 It uses the Google Translate API V3 for translating.
 
 Usage:
-	androidpkg [flags..] command packageName
+	androidpkg [flags..] command packageName [lang..]
 
 The commands are:
 	info
@@ -33,6 +33,8 @@ The commands are:
 	  Update packageName images using the files in images.
 	text
 	  Update packageName text using the files in words.
+	  
+  If one or more lang arguments are provided only check those.
 
 `
 )
@@ -58,26 +60,28 @@ func main() {
 	if err := isFile(*credentialsJson); err != nil {
 		fatal_usage(fmt.Errorf("credentialsJson got %v", err))
 	}
-	if flag.NArg() != 2 {
-		fatal_usage(fmt.Errorf("wrong number of arguments"))
+	if flag.NArg() < 2 {
+		fatal_usage(fmt.Errorf("missing arguments"))
 	}
+	packageName := flag.Arg(1)
+	langs := flag.Args()[2:]
 
 	// Run command.
 	var err error
 	switch flag.Arg(0) {
 	case "info":
-		err = apt.PackageInfo(os.Stdout, *credentialsJson, flag.Arg(1))
+		err = apt.PackageInfo(os.Stdout, *credentialsJson, packageName, langs)
 	case "images":
 		if err = isDir(*imagesDir); err != nil {
 			fatal_usage(err)
 		}
 		err = apt.PackageUpdateImages(
-			*credentialsJson, flag.Arg(1), *imagesDir)
+			*credentialsJson, packageName, *imagesDir, langs)
 	case "text":
 		if err = isDir(*wordsDir); err != nil {
 			fatal_usage(err)
 		}
-		err = apt.PackageUpdateText(*credentialsJson, flag.Arg(1), *wordsDir)
+		err = apt.PackageUpdateText(*credentialsJson, packageName, *wordsDir, langs)
 	case "update":
 		if err = isDir(*wordsDir); err != nil {
 			fatal_usage(err)
@@ -86,7 +90,7 @@ func main() {
 			fatal_usage(err)
 		}
 		err = apt.PackageUpdate(
-			*credentialsJson, flag.Arg(1), *wordsDir, *imagesDir, true, true)
+			*credentialsJson, packageName, *wordsDir, *imagesDir, langs, true, true)
 	}
 	if err != nil {
 		fatal(err)
