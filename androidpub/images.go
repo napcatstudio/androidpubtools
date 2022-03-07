@@ -17,13 +17,13 @@ var (
 	}
 
 	imageTypeInfo = map[string]string{
-		"phoneScreenshots":     "2-8 phone 24bit PNG (no alpha) ~1080x1920",
-		"sevenInchScreenshots": "1-? 7in tablet shot ~1920x1200",
-		"tenInchScreenshots":   "1-? 10in tablet shot ~2560x1600",
+		"phoneScreenshots":     "2-8 PNG or JPEG, up to 8 MB each, 16:9 or 9:16, each side 320-3,840px.",
+		"sevenInchScreenshots": "1-? PNG or JPEG, up to 8 MB each, 16:9 or 9:16, each side 320-3,840px.",
+		"tenInchScreenshots":   "1-? PNG or JPEG, up to 8 MB each, 16:9 or 9:16, each side 320-3,840px.",
 		"tvScreenshots":        "1-? from Tv",
 		"wearScreenshots":      "1-? from Watch",
-		"icon":                 "1 32bit PNG (no transparency) 512x512",
-		"featureGraphic":       "1 24bit PNG (no alpha) 1024x500",
+		"icon":                 "1 A transparent PNG or JPEG, up to 1 MB, 512px by 512px.",
+		"featureGraphic":       "1 PNG or JPEG, up to 1MB, and 1,024px by 500px.",
 		"tvBanner":             "1 24bit PNG (no alpha) 1280x720",
 	}
 )

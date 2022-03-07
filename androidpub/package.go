@@ -11,7 +11,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/napcatstudio/translate/xlns"
+	xlns "github.com/napcatstudio/translate"
 
 	ap "google.golang.org/api/androidpublisher/v3"
 )
