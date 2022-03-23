@@ -41,7 +41,8 @@ separately from updating.
 
     It can update the Play Store country text and images.  It uses a meaning
     ordered words system for text.  It uses a directory hierarchy for images.
-    It uses the Google Translate API V3 for translating.
+    If a text translation is too long it used the 'sub' file, if provided, for
+    alternative translation text.
 
     Usage:
         androidpkg [flags..] command packageName
@@ -60,6 +61,8 @@ separately from updating.
             Google Play Developer service credentials. (default "credentials.json")
     -images string
             Images directory. (default "images")
+    -sub string
+            Default update substitutions. (default "update.sub")
     -words string
             The directory containing the meaning ordered words files. (default "words")
 

@@ -2,9 +2,9 @@ module github.com/napcatstudio/androidpubtools
 
 go 1.17
 
-require (
-	google.golang.org/api v0.65.0
-)
+replace github.com/napcatstudio/translate v1.1.2 => /mnt/u/Graham/dev/golang/src/github.com/napcatstudio/translate
+
+require google.golang.org/api v0.65.0
 
 require (
 	cloud.google.com/go v0.100.2 // indirect
@@ -14,6 +14,7 @@ require (
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/google/go-cmp v0.5.6 // indirect
 	github.com/googleapis/gax-go/v2 v2.1.1 // indirect
+	github.com/napcatstudio/translate v1.1.2 // indirect
 	go.opencensus.io v0.23.0 // indirect
 	golang.org/x/net v0.0.0-20210503060351-7fd8e65b6420 // indirect
 	golang.org/x/oauth2 v0.0.0-20211104180415-d3ed0bb246c8 // indirect

@@ -1,4 +1,4 @@
 #!/bin/bash
 cd $PD
-go build cmd/androidpkg/main.go
+go build $GOPROJPD/cmd/androidpkg/main.go
 mv main $DEV/go/bin/androidpkg

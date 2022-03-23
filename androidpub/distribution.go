@@ -143,22 +143,11 @@ func TranslateableGoogleLocales(wordsDir, defLang string) ([]string, error) {
 			// We can't translate X to X.
 			continue
 		}
-		has, err := xlns.WordsHasLanguage(wordsDir, info.Bcp47)
+		_, err := xlns.WordsGetLang(wordsDir, info.Bcp47)
 		if err != nil {
-			// File access problem?
 			return nil, err
 		}
-		if !has {
-			// Do we have the main ISO-639 translation?
-			iso639 := xlns.Iso639FromBcp47(info.Bcp47)
-			has, err = xlns.WordsHasLanguage(wordsDir, iso639)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if has {
-			translateable = append(translateable, info.Bcp47)
-		}
+		translateable = append(translateable, info.Bcp47)
 	}
 	return translateable, nil
 }

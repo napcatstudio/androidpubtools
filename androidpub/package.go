@@ -4,12 +4,14 @@
 package androidpub
 
 import (
+	"bufio"
 	"crypto/sha1"
 	"fmt"
 	"io"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 
 	xlns "github.com/napcatstudio/translate"
 
@@ -91,7 +93,7 @@ func PackageInfo(
 // PackageUpdate updates a Play Store Android package using the
 // AndroidPublisher API V3.
 func PackageUpdate(
-	credentialsJson, packageName, wordsDir, imagesDir string,
+	credentialsJson, packageName, subFile, wordsDir, imagesDir string,
 	langs []string,
 	do_text, do_images bool) error {
 	//	fmt.Printf(`credentials: %s
@@ -101,6 +103,11 @@ func PackageUpdate(
 	//update images: %v
 	//`,
 	//		credentialsJson, wordsDir, imagesDir, do_text, do_images)
+
+	alternates, err := readSubstitutions(subFile)
+	if err != nil {
+		return err
+	}
 
 	service, err := GetAPService(credentialsJson)
 	if err != nil {
@@ -134,18 +141,6 @@ func PackageUpdate(
 		return fmt.Errorf("bad language in %v", langs)
 	}
 
-	//var translateable []string
-	//if do_text {
-	//	// Get the BCP-47 codes can check.
-	//	translateable, err = TranslateableGoogleLocales(wordsDir, defBcp47)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	//fmt.Printf("can update:%v\n", translateable)
-	//	// We need to update the default locale also.
-	//	translateable = append(translateable, defBcp47)
-	//}
-
 	// By locale.
 	needsCommit := false
 	for i, listing := range listings {
@@ -153,25 +148,13 @@ func PackageUpdate(
 		fmt.Printf("%s (%d/%d)\n", listing.Language, i+1, len(listings))
 
 		if do_text {
-			//can_translate := false
-			//for _, bcp47 := range translateable {
-			//	if bcp47 == listing.Language {
-			//		can_translate = true
-			//		break
-			//	}
-			//}
-			//if !can_translate {
-			//	fmt.Printf("no words for %s\n", listing.Language)
-			//	continue
-			//}
-
 			if defBcp47 == listing.Language {
 				fmt.Printf("default not changing %s\n", defBcp47)
 			} else {
 				commit, err := updateDescriptions(
 					service, editId,
 					packageName, wordsDir,
-					defBcp47, listing.Language)
+					defBcp47, listing.Language, alternates)
 				if err != nil {
 					return err
 				}
@@ -202,14 +185,44 @@ func PackageUpdate(
 	return nil
 }
 
+// readSubstitutions reads a translation substitution file into a map.  If
+// there is not a file it prints a warning and returns an empty map.
+func readSubstitutions(subFile string) (map[string]string, error) {
+	subs := make(map[string]string)
+	f, err := os.Open(subFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: no substitution file '%s'", subFile)
+		return subs, nil
+	}
+	defer f.Close()
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		toks := strings.Split(line, ":")
+		if len(toks) == 0 {
+			// Blank line.
+			continue
+		}
+		if len(toks) != 2 {
+			return nil, fmt.Errorf("bad substitution '%s' in %s", line, subFile)
+		}
+		// Original to alternate.
+		subs[toks[0]] = toks[1]
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("reading %s got %v", subFile, err)
+	}
+	return subs, nil
+}
+
 // PackageUpdateText updates a Play Store Android package text details using
 // the AndroidPublisher API V3.
 func PackageUpdateText(
-	credentialsJson, packageName, wordsDir string,
+	credentialsJson, packageName, subFile, wordsDir string,
 	langs []string) error {
 
 	return PackageUpdate(
-		credentialsJson, packageName, wordsDir, "", langs, true, false)
+		credentialsJson, packageName, subFile, wordsDir, "", langs, true, false)
 }
 
 // PackageUpdateText updates a Play Store Android package text details using
@@ -219,7 +232,7 @@ func PackageUpdateImages(
 	langs []string) error {
 
 	return PackageUpdate(
-		credentialsJson, packageName, "", imagesDir, langs, false, true)
+		credentialsJson, packageName, "", "", imagesDir, langs, false, true)
 }
 
 // listings returns the listings currently available in the Play Store.
@@ -263,7 +276,8 @@ func useListing(langs []string, listing *ap.Listing) bool {
 func updateDescriptions(
 	service *ap.Service, editId,
 	packageName, wordsDir,
-	defBcp47, bcp47 string) (bool, error) {
+	defBcp47, bcp47 string,
+	alternates map[string]string) (bool, error) {
 
 	// Get the base language listing.
 	baseListing, err := service.Edits.Listings.Get(
@@ -296,9 +310,10 @@ func updateDescriptions(
 		return false, fmt.Errorf("get listing for %s failed %v", bcp47, err)
 	}
 
+	altTitle := alternates[baseListing.Title]
 	translated := ap.Listing{
 		Language:         bcp47,
-		Title:            xm.TranslateByLine(baseListing.Title),
+		Title:            xm.TranslateByLineWithAlternate(baseListing.Title, altTitle, 30),
 		ShortDescription: xm.TranslateByLine(baseListing.ShortDescription),
 		FullDescription:  xm.TranslateByLine(baseListing.FullDescription),
 	}
@@ -322,23 +337,11 @@ func updateDescriptions(
 
 func langToUse(wordsDir, bcp47 string) (string, error) {
 	// Do we have this as a full BCP-47 language?
-	has, err := xlns.WordsHasLanguage(wordsDir, bcp47)
+	lang, err := xlns.WordsGetLang(wordsDir, bcp47)
 	if err != nil {
 		return "", err
 	}
-	if has {
-		return bcp47, nil
-	}
-	// Perhaps we just have the base ISO-639 language?
-	iso639 := xlns.Iso639FromBcp47(bcp47)
-	has, err = xlns.WordsHasLanguage(wordsDir, iso639)
-	if err != nil {
-		return "", err
-	}
-	if !has {
-		return "", fmt.Errorf("no %s or %s", bcp47, iso639)
-	}
-	return iso639, nil
+	return lang, nil
 }
 
 type shotInfo struct {

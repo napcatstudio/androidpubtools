@@ -15,11 +15,13 @@ const (
 	defaultCredentials = "credentials.json"
 	defaultWordsDir    = "words"
 	defaultImagesDir   = "images"
+	defaultUpdateSub   = "update.sub"
 	USAGE              = `androidpkg is a tool for managing Play Store packages.
 
 It can update the Play Store country text and images.  It uses a meaning
 ordered words system for text.  It uses a directory hierarchy for images.
-It uses the Google Translate API V3 for translating.
+If a text translation is too long it used the 'sub' file, if provided, for
+alternative translation text.
 
 Usage:
 	androidpkg [flags..] command packageName [lang..]
@@ -52,6 +54,10 @@ func main() {
 		"images", defaultImagesDir,
 		"Images directory.",
 	)
+	updateSubFile := flag.String(
+		"sub", defaultUpdateSub,
+		"Default update substitutions.",
+	)
 	flag.Usage = func() {
 		fmt.Fprintf(os.Stderr, USAGE)
 		flag.PrintDefaults()
@@ -81,7 +87,7 @@ func main() {
 		if err = isDir(*wordsDir); err != nil {
 			fatal_usage(err)
 		}
-		err = apt.PackageUpdateText(*credentialsJson, packageName, *wordsDir, langs)
+		err = apt.PackageUpdateText(*credentialsJson, packageName, *updateSubFile, *wordsDir, langs)
 	case "update":
 		if err = isDir(*wordsDir); err != nil {
 			fatal_usage(err)
@@ -90,7 +96,7 @@ func main() {
 			fatal_usage(err)
 		}
 		err = apt.PackageUpdate(
-			*credentialsJson, packageName, *wordsDir, *imagesDir, langs, true, true)
+			*credentialsJson, packageName, *updateSubFile, *wordsDir, *imagesDir, langs, true, true)
 	}
 	if err != nil {
 		fatal(err)
