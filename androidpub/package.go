@@ -177,7 +177,12 @@ func PackageUpdate(
 	}
 
 	if needsCommit {
-		err := EditsCommit(service, packageName, editId)
+		commit := service.Edits.Commit(packageName, editId)
+		commit.ChangesNotSentForReview(true)
+		//err := EditsCommit(service, packageName, editId)
+		//editsCommitCall := ap.EditsCommitCall(packageName, editId)
+		//editsCommitCall.ChangesNotSentForReview(true)
+		_, err := commit.Do()
 		if err != nil {
 			return err
 		}
