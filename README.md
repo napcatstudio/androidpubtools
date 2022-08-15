@@ -1,7 +1,5 @@
 # androidpubtools
 
-v1.0.0
-
 Google tools for Android Publishing using golang and Google APIs.
 
 The library has tools for updating the Play Store images and text for the 

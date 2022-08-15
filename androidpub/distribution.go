@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	xlns "github.com/napcatstudio/translate"
+	xlns "github.com/napcatstudio/translate/v2"
 )
 
 type GooglePlayDistribution struct {

@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	xlns "github.com/napcatstudio/translate"
+	xlns "github.com/napcatstudio/translate/v2"
 
 	ap "google.golang.org/api/androidpublisher/v3"
 )
