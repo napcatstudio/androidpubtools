@@ -166,7 +166,7 @@ func PackageUpdate(
 
 		if do_images {
 			commit, err := updateImages(
-				service, editId, packageName, imagesDir, listing.Language)
+				service, editId, packageName, imagesDir, defBcp47, listing.Language)
 			if err != nil {
 				return err
 			}
@@ -358,9 +358,12 @@ type shotInfo struct {
 func updateImages(
 	service *ap.Service, editId,
 	packageName, imagesDir,
-	bcp47 string) (bool, error) {
+	defBcp47, bcp47 string) (bool, error) {
 
-	iso639 := xlns.Iso639FromBcp47(bcp47)
+	defIso639 := xlns.Iso639FromBcp47(defBcp47) // en-US -> en
+	iso639 := xlns.Iso639FromBcp47(bcp47)       // en-GB -> en
+	isDefLocale := defBcp47 == bcp47            // en-US and en-US
+	isDifferentLang := iso639 != defIso639
 
 	needsCommit := false
 	// Go through shots.
@@ -370,10 +373,13 @@ func updateImages(
 		pattern := filepath.Join(locImageDir, bcp47+"*.png")
 		// Glob only has errors for bad patterns.
 		matches, _ := filepath.Glob(pattern)
+		isLocale := false
 		if len(matches) == 0 {
 			// Look for language specific images.
 			pattern = filepath.Join(locImageDir, iso639+"*.png")
 			matches, _ = filepath.Glob(pattern)
+		} else {
+			isLocale = true
 		}
 		// Get info from the directory and from Google.
 		sis, err := getLocalImagesInfo(matches)
@@ -412,23 +418,28 @@ func updateImages(
 			}
 			needsCommit = true
 		}
+		if !(isDifferentLang || isLocale || isDefLocale) {
+			continue
+		}
 		// Upload new images.
 		for _, si := range sis {
-			if si.image == nil {
-				// Update.
-				fmt.Printf("upload %s\n", si.file)
-				fPng, err := os.Open(si.file)
-				if err != nil {
-					return false, fmt.Errorf("can't open %s got %v", si.file, err)
-				}
-				defer fPng.Close()
-				_, err = service.Edits.Images.Upload(
-					packageName, editId, bcp47, imageType).Media(fPng).Do()
-				if err != nil {
-					return false, fmt.Errorf("uploading %s got %v", si.file, err)
-				}
-				needsCommit = true
+			if si.image != nil {
+				// We have this image already.
+				continue
 			}
+			// Update.
+			fmt.Printf("upload %s\n", si.file)
+			fPng, err := os.Open(si.file)
+			if err != nil {
+				return false, fmt.Errorf("can't open %s got %v", si.file, err)
+			}
+			defer fPng.Close()
+			_, err = service.Edits.Images.Upload(
+				packageName, editId, bcp47, imageType).Media(fPng).Do()
+			if err != nil {
+				return false, fmt.Errorf("uploading %s got %v", si.file, err)
+			}
+			needsCommit = true
 		}
 	}
 	if !needsCommit {
