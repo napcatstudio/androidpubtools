@@ -1,5 +1,6 @@
 *.json
 githubpersonalaccesstoken
+.DS_Store
 
 # Test words and images
 *.words
